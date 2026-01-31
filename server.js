@@ -13,8 +13,27 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(express.json());
+
+// Dynamic CORS Configuration
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://192.168.10.106:5173',
+    process.env.FRONTEND_URL // Vercel URL
+];
+
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://192.168.10.106:5173'],
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        // Check if origin is allowed or is a Vercel preview deployment
+        if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app')) {
+            callback(null, true);
+        } else {
+            console.log('Blocked by CORS:', origin);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true
 }));
 app.use(helmet());
@@ -43,7 +62,8 @@ const protect = async (req, res, next) => {
 
 // Routes - Auth
 app.post('/api/auth/register', async (req, res) => {
-    const { name, email, password } = req.body;
+    let { name, email, password } = req.body;
+    email = email.toLowerCase().trim(); // Enforce normalization
     console.log(`Register attempt for: ${email}`);
     try {
         const userExists = await User.findOne({ email });
@@ -64,7 +84,8 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
+    email = email.toLowerCase().trim(); // Enforce normalization
     try {
         const user = await User.findOne({ email });
         if (user && (await user.matchPassword(password))) {
